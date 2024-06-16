@@ -13,6 +13,7 @@ nifty_data = yf.download('^NSEI', period='1y')['Close']
 # Calculate daily closing percentage change and replace NaN with 0
 nifty_data_pct = nifty_data.pct_change().fillna(0)
 
+
 # Create a new DataFrame with weekdays, week numbers, and month names
 heatmap_data = pd.DataFrame({
     'Date': nifty_data_pct.index.date,
