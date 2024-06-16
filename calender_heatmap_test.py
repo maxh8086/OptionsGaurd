@@ -8,7 +8,6 @@ def main():
     calendar_heatmap(ax, dates, data)
     plt.show()
 
-
 def generate_data():
     num = 100
     data = np.random.randint(0, 20, num)
