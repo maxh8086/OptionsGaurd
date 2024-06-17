@@ -1,4 +1,5 @@
-packages = ['numpy','pandas','matplotlib','plotly']
+# packages = ['numpy','pandas','matplotlib','plotly','scikit-learn', 'yfinance']
+packages = ['numpy','pandas','matplotlib','plotly', 'yfinance']
 
 def import_or_install(packages):
     import pip
@@ -8,10 +9,14 @@ def import_or_install(packages):
         except ImportError:
             pip.main(['install', package])
 
-import plotly.graph_objs as go
-# import plotly.express as px
+import_or_install(packages)
+
+from plotly.subplots import make_subplots
+from plotly import graph_objs as go
+from plotly import express as px
 from sklearn.preprocessing import MinMaxScaler
 import pandas as pd
+import numpy as np
 import yfinance as yf
 import webbrowser
 from http.server import HTTPServer, SimpleHTTPRequestHandler
@@ -19,11 +24,20 @@ import threading
 import calendar
 import time
 
+
+# fig = make_subplots(rows=4, cols=1,row_heights=[2, 2, 4, 4])
+fig = make_subplots(
+    rows=2, cols=2,
+    specs=[[{'colspan': 2}, None],  # First row spans two columns
+           [{}, {}]],               # Second row has two columns
+    subplot_titles=('Daily % Change', 'Range', 'Normalised Data')
+)
 # Fetch historical data for Nifty 50
 nifty_data = yf.download('^NSEI', period='1y')['Close']
 
 # Calculate daily closing percentage change and replace NaN with 0
-nifty_data_pct = nifty_data.pct_change()*100
+# nifty_data_pct = nifty_data.pct_change()*100
+nifty_data_pct = nifty_data.pct_change().fillna(0) * 100
 
 month_order = {"January": 1, "February": 2, "March": 3, "April": 4, "May": 5, "June": 6,
                "July": 7, "August": 8, "September": 9, "October": 10, "November": 11, "December": 12}
@@ -102,12 +116,22 @@ for month_name in month_names:
 x_labels = [week_to_date.get(week, '').strftime('%b W%U') for week in pivot_table.columns.get_level_values('Week Number')]
 y_labels = ['Friday', 'Thursday', 'Wednesday', 'Tuesday', 'Monday']
 
-fig = go.Figure(data=go.Heatmap(
+# fig = go.Figure(data=go.Heatmap(
+#         z=pivot_table.values,
+#         x=x_labels,  # Use the list of dates as x-axis labels
+#         y=y_labels,
+#         colorscale='Viridis'
+# ))
+
+fig.add_trace(
+    go.Heatmap(
         z=pivot_table.values,
-        x=x_labels,  # Use the list of dates as x-axis labels
+        x=x_labels,
         y=y_labels,
         colorscale='Viridis'
-))
+    ),
+    row=1, col=1
+)
 
 cumulative_length = 0
 shapes = []
@@ -143,9 +167,10 @@ fig.update_layout(
         # ticktext=[day_name for day_name in pivot_table.index.get_level_values('Day Name').unique()]
         ticktext=y_labels
     ),
-    height=60 * len(pivot_table.index), # Adjust 60 to a suitable value based on your data
+    height=100 * len(pivot_table.index), # Adjust 60 to a suitable value based on your data
     shapes=shapes
 )
+
 
 
 # Assuming 'nifty_data_pct' is your DataFrame with percentage change values
@@ -160,7 +185,6 @@ normalized_data = scaler.fit_transform(nifty_data_pct)
 # Convert back to DataFrame
 normalized_df = pd.DataFrame(normalized_data, columns=['Normalized Values'])
 
-print(normalized_df)
 # Assuming 'normalized_df' is your DataFrame with the normalized values
 mean = normalized_df['Normalized Values'].mean()
 std_dev = normalized_df['Normalized Values'].std()
@@ -171,11 +195,58 @@ data_within_1_std_dev = normalized_df[(normalized_df['Normalized Values'] > (mea
 # Data within 2 standard deviations
 data_within_2_std_dev = normalized_df[(normalized_df['Normalized Values'] > (mean - 2*std_dev)) & (normalized_df['Normalized Values'] < (mean + 2*std_dev))]
 
-print("Data within 1 Standard Deviation:\n", data_within_1_std_dev)
-print("Data within 2 Standard Deviations:\n", data_within_2_std_dev)
+# print("Data within 1 Standard Deviation:\n", data_within_1_std_dev)
+# print("Data within 2 Standard Deviations:\n", data_within_2_std_dev)
 
 # Assuming 'normalized_df' is your DataFrame with the normalized values
-fig = px.line(normalized_df, x=normalized_df.index, y='Normalized Values', title='Normalized Data Plot')
+# Add the line plot to row 2, column 1
+fig.add_trace(
+    go.Scatter(
+        x=normalized_df.index,
+        y=normalized_df['Normalized Values'],
+        mode='lines'
+    ),
+    row=2, col=1
+)
+
+
+
+# Update layout for a nice look
+# Update x-axis title for the third row
+fig.update_xaxes(title_text='Change Percentage', row=2, col=1)
+
+# Update y-axis title for the third row
+fig.update_yaxes(title_text='Change', row=2, col=1)
+
+# Assuming 'normalized_df' is your DataFrame with the normalized values
+data = normalized_df['Normalized Values'].dropna()
+
+# Calculate points for bell curve
+mean = np.mean(data)
+std_dev = np.std(data)
+x_values = np.linspace(mean - 3*std_dev, mean + 3*std_dev, 10)
+y_values = (1/(std_dev * np.sqrt(2 * np.pi))) * np.exp( - (x_values - mean)**2 / (2 * std_dev**2))
+
+# Create histogram trace for the third row
+histogram = go.Histogram(x=data, nbinsx=25, opacity=0.5)
+fig.add_trace(histogram, row=2, col=2)
+
+# Create bell curve trace for the third row
+bell_curve = go.Scatter(x=x_values, y=y_values, mode='lines')
+fig.add_trace(bell_curve, row=2, col=2)
+
+fig.update_xaxes(title_text='Normalized Values', row=2, col=2)
+
+# Update y-axis title for the third row
+fig.update_yaxes(title_text='Frequency', row=2, col=2)
+
+fig.update_layout(
+    bargap=0.2,
+    showlegend=True,
+    height=600 # You can adjust this value as needed
+)
+
+
 
 # Save the figure to an HTML file
 fig.write_html('nifty_calendar_heatmap.html')
