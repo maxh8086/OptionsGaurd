@@ -27,10 +27,11 @@ import time
 
 # fig = make_subplots(rows=4, cols=1,row_heights=[2, 2, 4, 4])
 fig = make_subplots(
-    rows=2, cols=2,
+    rows=3, cols=2,
     specs=[[{'colspan': 2}, None],  # First row spans two columns
-           [{}, {}]],               # Second row has two columns
-    subplot_titles=('Daily % Change', 'Range', 'Normalised Data')
+           [{'colspan': 2}, None],  # Second row has two columns
+           [{}, {}]],               # Third row has two columns
+    subplot_titles=('% Change', 'Daily % Change', 'Range', 'Normalised Data')
 )
 # Fetch historical data for Nifty 50
 nifty_data = yf.download('^NSEI', period='1y')['Close']
@@ -110,18 +111,8 @@ for month_name in month_names:
     month_positions.append(cumulative_length)
 
 # Assuming 'week_to_date' is a dictionary mapping week numbers to dates
-# x_labels = [week_to_date.get(week, '') for week in pivot_table.columns.get_level_values('Week Number')]
-# x_labels = [date.strftime('%b W%U') for date in x_labels]
-# combined aboe 2 lines in to single line below
 x_labels = [week_to_date.get(week, '').strftime('%b W%U') for week in pivot_table.columns.get_level_values('Week Number')]
 y_labels = ['Friday', 'Thursday', 'Wednesday', 'Tuesday', 'Monday']
-
-# fig = go.Figure(data=go.Heatmap(
-#         z=pivot_table.values,
-#         x=x_labels,  # Use the list of dates as x-axis labels
-#         y=y_labels,
-#         colorscale='Viridis'
-# ))
 
 fig.add_trace(
     go.Heatmap(
@@ -172,6 +163,28 @@ fig.update_layout(
 )
 
 
+# Assuming 'nifty_data_pct' is your pandas Series with the daily percentage change values.
+nifty_data_pct_color = nifty_data_pct.apply(lambda x: 'green' if x >= 0 else 'red')
+
+# Add histogram traces for positive and negative changes
+fig.add_trace(
+    go.Bar(
+    x=nifty_data_pct.index,
+    y=nifty_data_pct.values,
+    marker_color=nifty_data_pct_color  # This sets the color of the bars based on the 'Color' column
+    ),
+    row=2, col=1
+)
+
+
+# Update the layout to show the negative values below zero
+fig.update_layout(
+    title='Daily Percentage Changes',
+    xaxis_title='Date',
+    yaxis_title='Percentage Change',
+    barmode='group'
+    )
+
 
 # Assuming 'nifty_data_pct' is your DataFrame with percentage change values
 scaler = MinMaxScaler()
@@ -206,17 +219,17 @@ fig.add_trace(
         y=normalized_df['Normalized Values'],
         mode='lines'
     ),
-    row=2, col=1
+    row=3, col=1
 )
 
 
 
 # Update layout for a nice look
 # Update x-axis title for the third row
-fig.update_xaxes(title_text='Change Percentage', row=2, col=1)
+fig.update_xaxes(title_text='Change Percentage', row=3, col=1)
 
 # Update y-axis title for the third row
-fig.update_yaxes(title_text='Change', row=2, col=1)
+fig.update_yaxes(title_text='Change', row=3, col=1)
 
 # Assuming 'normalized_df' is your DataFrame with the normalized values
 data = normalized_df['Normalized Values'].dropna()
@@ -229,20 +242,20 @@ y_values = (1/(std_dev * np.sqrt(2 * np.pi))) * np.exp( - (x_values - mean)**2 /
 
 # Create histogram trace for the third row
 histogram = go.Histogram(x=data, nbinsx=25, opacity=0.5)
-fig.add_trace(histogram, row=2, col=2)
+fig.add_trace(histogram, row=3, col=2)
 
 # Create bell curve trace for the third row
 bell_curve = go.Scatter(x=x_values, y=y_values, mode='lines')
-fig.add_trace(bell_curve, row=2, col=2)
+fig.add_trace(bell_curve, row=3, col=2)
 
-fig.update_xaxes(title_text='Normalized Values', row=2, col=2)
+fig.update_xaxes(title_text='Normalized Values', row=3, col=2)
 
 # Update y-axis title for the third row
-fig.update_yaxes(title_text='Frequency', row=2, col=2)
+fig.update_yaxes(title_text='Frequency', row=3, col=2)
 
 fig.update_layout(
     bargap=0.2,
-    showlegend=True,
+    showlegend=False,
     height=600 # You can adjust this value as needed
 )
 
@@ -252,27 +265,27 @@ fig.update_layout(
 fig.write_html('nifty_calendar_heatmap.html')
 
 
-class StoppableHTTPServer(HTTPServer):
-    def run_forever(self):
-        try:
-            self.serve_forever()
-        except KeyboardInterrupt:
-            pass
-        finally:
-            self.server_close()
+# class StoppableHTTPServer(HTTPServer):
+#     def run_forever(self):
+#         try:
+#             self.serve_forever()
+#         except KeyboardInterrupt:
+#             pass
+#         finally:
+#             self.server_close()
 
-def start_server():
-    server_address = ('localhost', 8000)
-    httpd = StoppableHTTPServer(server_address, SimpleHTTPRequestHandler)
-    webbrowser.open('http://localhost:8000/nifty_calendar_heatmap.html')
-    httpd.run_forever()
+# def start_server():
+#     server_address = ('localhost', 8000)
+#     httpd = StoppableHTTPServer(server_address, SimpleHTTPRequestHandler)
+#     webbrowser.open('http://localhost:8000/nifty_calendar_heatmap.html')
+#     httpd.run_forever()
 
-# Start the server in a new thread
-server_thread = threading.Thread(target=start_server)
-server_thread.start()
+# # Start the server in a new thread
+# server_thread = threading.Thread(target=start_server)
+# server_thread.start()
 
-# To stop the server, call server_thread.join() when you want to terminate it
-# For example, after some time or based on some condition
-time.sleep(10)  # Server will run for 10 seconds for demonstration purposes
-server_thread.join()
+# # To stop the server, call server_thread.join() when you want to terminate it
+# # For example, after some time or based on some condition
+# time.sleep(10)  # Server will run for 10 seconds for demonstration purposes
+# server_thread.join()
 
